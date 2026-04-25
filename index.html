@@ -1,0 +1,237 @@
+
+<div style="padding:1.5rem 1rem 2rem;max-width:540px;margin:0 auto;font-family:var(--font-sans,sans-serif)">
+  <audio id="audioHetGio" src="hetgio.mp3" preload="auto"></audio>
+  <h2 style="font-size:18px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px">Đồng hồ thi cử</h2>
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:1.25rem;line-height:1.5">Kim đồng hồ chạy từ giờ bắt đầu và dừng khi hết thời gian làm bài.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem">
+    <div>
+      <label style="display:block;font-size:12px;color:var(--color-text-secondary);margin-bottom:4px">Giờ bắt đầu thi</label>
+      <input id="startTime" type="time" value="08:30"
+        style="width:100%;padding:9px 12px;border:1px solid #aaa;border-radius:8px;font-size:15px;font-family:inherit;color:var(--color-text-primary);background:var(--color-background-primary);box-sizing:border-box">
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;color:var(--color-text-secondary);margin-bottom:4px">Thời gian làm bài (phút)</label>
+      <input id="duration" type="number" value="150" min="1" max="600" placeholder="vd: 150"
+        style="width:100%;padding:9px 12px;border:1px solid #aaa;border-radius:8px;font-size:15px;font-family:inherit;color:var(--color-text-primary);background:var(--color-background-primary);box-sizing:border-box">
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:1.5rem">
+    <button id="btnStart"
+      style="padding:9px 22px;border-radius:8px;border:none;background:#1a1a18;color:#fff;font-size:14px;cursor:pointer;font-family:inherit">
+      Bắt đầu đếm
+    </button>
+    <button id="btnReset"
+      style="padding:9px 22px;border-radius:8px;border:1px solid #aaa;background:transparent;color:var(--color-text-primary);font-size:14px;cursor:pointer;font-family:inherit">
+      Đặt lại
+    </button>
+  </div>
+
+  <div id="alertBox" style="display:none;padding:9px 13px;border-radius:8px;font-size:13px;margin-bottom:.75rem;line-height:1.4"></div>
+
+  <div style="display:flex;justify-content:center;margin-bottom:1.25rem">
+    <canvas id="clock" width="280" height="280"></canvas>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem">
+    <div style="background:var(--color-background-secondary,#f1efe8);border-radius:8px;padding:10px 12px">
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em">Bắt đầu</div>
+      <div id="iStart" style="font-size:16px;font-weight:500;color:var(--color-text-primary)">--:--</div>
+    </div>
+    <div style="background:var(--color-background-secondary,#f1efe8);border-radius:8px;padding:10px 12px">
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em">Kết thúc</div>
+      <div id="iEnd" style="font-size:16px;font-weight:500;color:var(--color-text-primary)">--:--</div>
+    </div>
+    <div style="background:var(--color-background-secondary,#f1efe8);border-radius:8px;padding:10px 12px">
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em">Còn lại</div>
+      <div id="iLeft" style="font-size:14px;font-weight:500;color:var(--color-text-primary)">-- phút</div>
+    </div>
+  </div>
+
+  <div id="progSection" style="display:none">
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);margin-bottom:5px">
+      <span>Tiến độ</span><span id="pctLbl">0%</span>
+    </div>
+    <div style="height:5px;background:#e0ddd6;border-radius:3px;overflow:hidden">
+      <div id="pBar" style="height:100%;background:#1D9E75;border-radius:3px;width:0%;transition:width .8s linear,background .5s"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const cv=document.getElementById('clock');
+const ctx=cv.getContext('2d');
+const W=280,R=W/2,CR=R-12;
+let startH=8,startM=30,totalMins=150;
+let elapsedSec=0,ticker=null,running=false;
+
+function fmt2(n){return String(n).padStart(2,'0')}
+function addMins(h,m,mins){const t=h*60+m+mins;return{h:Math.floor(t/60)%24,m:t%60}}
+function fmtHM(h,m){return fmt2(h)+':'+fmt2(m)}
+
+function getAngles(eSec){
+  const base=startH*3600+startM*60;
+  const cur=base+eSec;
+  const h12=Math.floor(cur/3600)%12;
+  const mm=Math.floor((cur%3600)/60);
+  const ss=cur%60;
+  const hr=((h12*3600+mm*60+ss)/43200)*Math.PI*2-Math.PI/2;
+  const mn=((mm*60+ss)/3600)*Math.PI*2-Math.PI/2;
+  const sc=(ss/60)*Math.PI*2-Math.PI/2;
+  return{hr,mn,sc};
+}
+
+function timeAngle(h,m){
+  return(((h%12)*3600+m*60)/43200)*Math.PI*2-Math.PI/2;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,W);
+  const cx=R,cy=R;
+  const dk=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const c={
+    face:dk?'#1e1e1e':'#fafaf8',
+    ring:dk?'#404040':'#dedad2',
+    tickMaj:dk?'#c8c8c6':'#3a3a38',
+    tickMin:dk?'#4a4a48':'#c0bdb6',
+    num:dk?'#d8d8d6':'#2C2C2A',
+    hand:dk?'#e4e4e2':'#1a1a18',
+  };
+
+  ctx.beginPath();ctx.arc(cx,cy,CR,0,Math.PI*2);
+  ctx.fillStyle=c.face;ctx.fill();
+  ctx.strokeStyle=c.ring;ctx.lineWidth=1.5;ctx.stroke();
+
+  for(let i=0;i<60;i++){
+    const a=(i/60)*Math.PI*2-Math.PI/2;
+    const maj=i%5===0;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*(CR-2),cy+Math.sin(a)*(CR-2));
+    ctx.lineTo(cx+Math.cos(a)*(CR-(maj?14:6)),cy+Math.sin(a)*(CR-(maj?14:6)));
+    ctx.strokeStyle=maj?c.tickMaj:c.tickMin;
+    ctx.lineWidth=maj?1.5:.7;ctx.stroke();
+  }
+
+  ctx.fillStyle=c.num;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font='500 13px sans-serif';
+  for(let h=1;h<=12;h++){
+    const a=(h/12)*Math.PI*2-Math.PI/2;
+    ctx.fillText(h,cx+Math.cos(a)*(CR-28),cy+Math.sin(a)*(CR-28));
+  }
+
+  if(running||elapsedSec>0){
+    const endHM=addMins(startH,startM,totalMins);
+    const aStart=timeAngle(startH,startM);
+    const aEnd=timeAngle(endHM.h,endHM.m);
+    const{hr,mn,sc}=getAngles(elapsedSec);
+    const done=elapsedSec>=totalMins*60;
+    const arcR=CR-7;
+
+    ctx.beginPath();ctx.arc(cx,cy,arcR,aStart,done?aEnd:mn);
+    ctx.strokeStyle='#1D9E75';ctx.lineWidth=5;ctx.lineCap='round';ctx.stroke();
+
+    if(!done){
+      ctx.beginPath();ctx.arc(cx,cy,arcR,mn,aEnd);
+      ctx.strokeStyle='#D85A30';ctx.lineWidth=5;ctx.lineCap='round';
+      ctx.setLineDash([5,7]);ctx.stroke();ctx.setLineDash([]);
+    }
+
+    ctx.beginPath();ctx.arc(cx+Math.cos(aStart)*arcR,cy+Math.sin(aStart)*arcR,4.5,0,Math.PI*2);
+    ctx.fillStyle='#1D9E75';ctx.fill();
+    ctx.beginPath();ctx.arc(cx+Math.cos(aEnd)*arcR,cy+Math.sin(aEnd)*arcR,4.5,0,Math.PI*2);
+    ctx.fillStyle='#D85A30';ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx-Math.cos(hr)*8,cy-Math.sin(hr)*8);
+    ctx.lineTo(cx+Math.cos(hr)*(CR-52),cy+Math.sin(hr)*(CR-52));
+    ctx.strokeStyle=c.hand;ctx.lineWidth=5;ctx.lineCap='round';ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx-Math.cos(mn)*8,cy-Math.sin(mn)*8);
+    ctx.lineTo(cx+Math.cos(mn)*(CR-22),cy+Math.sin(mn)*(CR-22));
+    ctx.strokeStyle=c.hand;ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
+
+    if(running&&!done){
+      ctx.beginPath();
+      ctx.moveTo(cx-Math.cos(sc)*12,cy-Math.sin(sc)*12);
+      ctx.lineTo(cx+Math.cos(sc)*(CR-18),cy+Math.sin(sc)*(CR-18));
+      ctx.strokeStyle='#D85A30';ctx.lineWidth=1.2;ctx.lineCap='round';ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle=c.tickMin;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font='13px sans-serif';
+    ctx.fillText('Nhập thông tin',cx,cy-8);
+    ctx.fillText('và bắt đầu',cx,cy+10);
+  }
+
+  ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fillStyle=c.hand;ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fillStyle='#D85A30';ctx.fill();
+}
+
+function updateUI(){
+  const endHM=addMins(startH,startM,totalMins);
+  const leftSec=Math.max(0,totalMins*60-elapsedSec);
+  const leftMin=Math.floor(leftSec/60);
+  const pct=Math.min(100,Math.round(elapsedSec/(totalMins*60)*100));
+  const iLeft=document.getElementById('iLeft');
+  const pBar=document.getElementById('pBar');
+  const alertBox=document.getElementById('alertBox');
+
+  document.getElementById('iStart').textContent=fmtHM(startH,startM);
+  document.getElementById('iEnd').textContent=fmtHM(endHM.h,endHM.m);
+  document.getElementById('pctLbl').textContent=pct+'%';
+
+  if(leftSec<=0){
+    document.getElementById('audioHetGio').play(); // thêm dòng này
+    iLeft.textContent='Hết giờ!';iLeft.style.color='#D85A30';
+    pBar.style.width='100%';pBar.style.background='#D85A30';
+    alertBox.style.display='block';
+    alertBox.style.background='#FCEBEB';alertBox.style.color='#A32D2D';alertBox.style.border='1px solid #F09595';
+    alertBox.textContent='Hết giờ làm bài!';
+    stop();
+  } else {
+    const hL=Math.floor(leftMin/60),mL=leftMin%60;
+    iLeft.textContent=hL>0?hL+'h '+fmt2(mL)+'m':leftMin+' phút';
+    if(leftMin<=15){iLeft.style.color='#D85A30';pBar.style.background='#D85A30'}
+    else if(leftMin<=30){iLeft.style.color='#BA7517';pBar.style.background='#BA7517'}
+    else{iLeft.style.color='#1D9E75';pBar.style.background='#1D9E75'}
+    pBar.style.width=pct+'%';
+    if(leftMin===15&&elapsedSec%60===0){
+      alertBox.style.display='block';
+      alertBox.style.background='#FAEEDA';alertBox.style.color='#633806';alertBox.style.border='1px solid #FAC775';
+      alertBox.textContent='Còn 15 phút — sắp hết giờ!';
+    } else if(leftMin>15){alertBox.style.display='none'}
+  }
+}
+
+function stop(){if(ticker){clearInterval(ticker);ticker=null}running=false}
+
+document.getElementById('btnStart').addEventListener('click',()=>{
+  const tv=document.getElementById('startTime').value;
+  const dur=parseInt(document.getElementById('duration').value);
+  if(!tv||!dur||dur<1)return;
+  const[hh,mm]=tv.split(':').map(Number);
+  startH=hh;startM=mm;totalMins=dur;
+  elapsedSec=0;stop();running=true;
+  document.getElementById('progSection').style.display='block';
+  document.getElementById('alertBox').style.display='none';
+  updateUI();draw();
+  ticker=setInterval(()=>{elapsedSec++;updateUI();draw();},1000);
+});
+
+document.getElementById('btnReset').addEventListener('click',()=>{
+  stop();elapsedSec=0;running=false;
+  document.getElementById('iStart').textContent='--:--';
+  document.getElementById('iEnd').textContent='--:--';
+  document.getElementById('iLeft').textContent='-- phút';
+  document.getElementById('iLeft').style.color='';
+  document.getElementById('pBar').style.width='0%';
+  document.getElementById('progSection').style.display='none';
+  document.getElementById('alertBox').style.display='none';
+  draw();
+});
+
+draw();
+</script>
