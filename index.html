@@ -13,6 +13,20 @@
   <h2 style="font-size:18px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px">Đồng hồ thi cử</h2>
   <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:1.25rem;line-height:1.5">Kim đồng hồ chạy từ giờ bắt đầu và dừng khi hết thời gian làm bài.</p>
 
+  <div style="margin-bottom:1rem">
+    <label style="display:block;font-size:12px;color:var(--color-text-secondary);margin-bottom:6px">Chọn form thi</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      <button class="formBtn" data-start="08:30" data-duration="150" style="padding:8px 10px;border-radius:6px;border:1px solid #aaa;background:transparent;color:var(--color-text-primary);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s">V-ACT</button>
+      <button class="formBtn" data-start="07:35" data-duration="120" style="padding:8px 10px;border-radius:6px;border:1px solid #aaa;background:transparent;color:var(--color-text-primary);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s">Ngữ Văn TNTHPT</button>
+      <button class="formBtn" data-start="14:30" data-duration="90" style="padding:8px 10px;border-radius:6px;border:1px solid #aaa;background:transparent;color:var(--color-text-primary);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s">Toán TNTHPT</button>
+      <button class="formBtn" data-start="07:35" data-duration="50" style="padding:8px 10px;border-radius:6px;border:1px solid #aaa;background:transparent;color:var(--color-text-primary);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s">Tự chọn 1 TNTHPT</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <button class="formBtn" data-start="08:40" data-duration="50" style="padding:8px 10px;border-radius:6px;border:1px solid #aaa;background:transparent;color:var(--color-text-primary);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s">Tự chọn 2 TNTHPT</button>
+      <button id="btnCustom" style="padding:8px 10px;border-radius:6px;border:1px solid #aaa;background:transparent;color:var(--color-text-primary);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s">Tự chọn</button>
+    </div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem">
     <div>
       <label style="display:block;font-size:12px;color:var(--color-text-secondary);margin-bottom:4px">Giờ bắt đầu thi</label>
@@ -131,26 +145,8 @@ function draw(){
   }
 
   if(running||elapsedSec>0){
-    const endHM=addMins(startH,startM,totalMins);
-    const aStart=timeAngle(startH,startM);
-    const aEnd=timeAngle(endHM.h,endHM.m);
     const{hr,mn,sc}=getAngles(elapsedSec);
     const done=elapsedSec>=totalMins*60;
-    const arcR=CR-7;
-
-    ctx.beginPath();ctx.arc(cx,cy,arcR,aStart,done?aEnd:mn);
-    ctx.strokeStyle='#1D9E75';ctx.lineWidth=5;ctx.lineCap='round';ctx.stroke();
-
-    if(!done){
-      ctx.beginPath();ctx.arc(cx,cy,arcR,mn,aEnd);
-      ctx.strokeStyle='#D85A30';ctx.lineWidth=5;ctx.lineCap='round';
-      ctx.setLineDash([5,7]);ctx.stroke();ctx.setLineDash([]);
-    }
-
-    ctx.beginPath();ctx.arc(cx+Math.cos(aStart)*arcR,cy+Math.sin(aStart)*arcR,4.5,0,Math.PI*2);
-    ctx.fillStyle='#1D9E75';ctx.fill();
-    ctx.beginPath();ctx.arc(cx+Math.cos(aEnd)*arcR,cy+Math.sin(aEnd)*arcR,4.5,0,Math.PI*2);
-    ctx.fillStyle='#D85A30';ctx.fill();
 
     ctx.beginPath();
     ctx.moveTo(cx-Math.cos(hr)*8,cy-Math.sin(hr)*8);
@@ -216,6 +212,43 @@ function updateUI(){
 }
 
 function stop(){if(ticker){clearInterval(ticker);ticker=null}running=false}
+
+// Thêm event listener cho các nút form thi
+document.querySelectorAll('.formBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    const startTime = e.target.getAttribute('data-start');
+    const duration = e.target.getAttribute('data-duration');
+    document.getElementById('startTime').value = startTime;
+    document.getElementById('duration').value = duration;
+    
+    // Highlight nút được chọn
+    document.querySelectorAll('.formBtn').forEach(b => {
+      b.style.background = 'transparent';
+      b.style.border = '1px solid #aaa';
+      b.style.color = 'var(--color-text-primary)';
+    });
+    e.target.style.background = '#1a1a18';
+    e.target.style.border = '1px solid #1a1a18';
+    e.target.style.color = '#fff';
+    
+    // Reset custom button
+    document.getElementById('btnCustom').style.background = 'transparent';
+    document.getElementById('btnCustom').style.border = '1px solid #aaa';
+    document.getElementById('btnCustom').style.color = 'var(--color-text-primary)';
+  });
+});
+
+// Thêm event listener cho nút tự chọn
+document.getElementById('btnCustom').addEventListener('click', () => {
+  document.querySelectorAll('.formBtn').forEach(b => {
+    b.style.background = 'transparent';
+    b.style.border = '1px solid #aaa';
+    b.style.color = 'var(--color-text-primary)';
+  });
+  document.getElementById('btnCustom').style.background = '#1a1a18';
+  document.getElementById('btnCustom').style.border = '1px solid #1a1a18';
+  document.getElementById('btnCustom').style.color = '#fff';
+});
 
 document.getElementById('btnStart').addEventListener('click',()=>{
   const tv=document.getElementById('startTime').value;
